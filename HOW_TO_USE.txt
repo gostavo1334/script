@@ -1,0 +1,84 @@
+EXCEL DATA RANGE TO TELEGRAM BOT
+==================================
+
+This script captures ONLY your Excel data (not the whole screen or window)
+
+WHAT IT DOES:
+- Opens your Excel file in the background (no window popping up)
+- Goes to the sheet you specify
+- Captures ONLY the data range (with images/charts) as a clean PNG
+- Sends the image to your Telegram group
+- Also sends the Excel file (optional)
+
+COMMANDS (for PowerShell):
+--------------------------
+
+1. Send active Excel file immediately:
+   .\run_excel_to_telegram.bat --now
+
+2. Send a specific Excel file:
+   .\run_excel_to_telegram.bat --file "C:\path\to\your_file.xlsx" --now
+
+3. Send a specific sheet from a file:
+   .\run_excel_to_telegram.bat --file "your_file.xlsx" --sheet "Sheet1" --now
+
+4. Send a specific range (e.g., A1:G50):
+   .\run_excel_to_telegram.bat --file "your_file.xlsx" --range "A1:G50" --now
+
+5. Schedule daily at 15:30 (3:30 PM):
+   .\run_excel_to_telegram.bat --time "15:30" --file "your_file.xlsx" --sheet "Data"
+
+6. Send only the image (not the Excel file):
+   .\run_excel_to_telegram.bat --file "your_file.xlsx" --now --no-file
+
+7. Use a custom caption:
+   .\run_excel_to_telegram.bat --file "your_file.xlsx" --now --caption "Daily Sales"
+
+8. Set a permanent caption:
+   .\run_excel_to_telegram.bat --set-caption "My Default Caption"
+
+FILES IN THIS FOLDER:
+--------------------
+excel_to_telegram.py     - Main script
+run_excel_to_telegram.bat - Batch file for easy running
+HOW_TO_USE.txt           - This file
+
+REQUIREMENTS:
+-------------
+- Windows
+- Python 3.7+
+- Microsoft Excel installed
+- Your Excel file path
+
+INSTALLATION:
+-------------
+First time only:
+1. Install Python from https://www.python.org/downloads/
+2. Open Command Prompt and run:
+   pip install requests schedule pywin32
+
+CONFIGURED FOR YOU:
+-------------------
+Bot Token: 8992293068:AAEWvcFouV8xc0v9PDfnBsNwaxGgAViYlUQ
+Chat ID: -5221976122
+Caption: "Excel Data - Auto Uploaded"
+
+TROUBLESHOOTING:
+----------------
+- "No file specified" - You must provide --file "your_file.xlsx"
+- "Sheet not found" - Check the exact sheet name in Excel
+- "Range not valid" - Use format like "A1:G50" or "B2:M100"
+- "Excel not found" - Make sure Microsoft Excel is installed
+
+BEST PRACTICE:
+--------------
+For automatic daily sending, use Windows Task Scheduler:
+1. Open Task Scheduler
+2. Create Basic Task
+3. Set trigger: Daily at your time (e.g., 15:30)
+4. Action: Start a program
+5. Program: C:\Users\DELL\Desktop\script\run_excel_to_telegram.bat
+6. Arguments: --file "C:\path\to\your_file.xlsx" --sheet "Sheet1" --now
+7. Check "Run with highest privileges"
+
+This will run automatically every day!
