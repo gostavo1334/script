@@ -25,25 +25,26 @@ CHAT_ID = "-5221976122"
 
 def get_caption():
     ts = datetime.now().strftime("(%d/%m):%H:%M")
-    return f"""នេះជាបញ្ជីឈ្មោះ អតិថិជនថ្មីក្នុងខែ កញ្ញា ដែលមិនទាន់មានពត៌មានរបស់បុគ្គលិកអ្នកណែនាំ
+    return f"""
+    DAILY REPORT OF NEW CUSOMERS
+
+នេះជាបញ្ជីឈ្មោះ អតិថិជនថ្មីក្នុងខែ កញ្ញា ដែលមិនទាន់មានពត៌មានរបស់បុគ្គលិកអ្នកណែនាំ
 សូមបញ្ចូលព័ត៌មានអ្នកណែនាំ
 
-*សាខាមានលទ្ធផលភ្ញៀវថ្មីតិចជាងគេ
+*សាខាមានលទ្ធផលភ្ញៀវថ្មីតិចជាងគេ: +ban, BAT, SIE
 
-*សាខាមិនទាន់មានលទ្ធផលភ្ញៀវថ្មី{ts}
 
-*សាខាមានលទ្ធផលភ្ញៀវថ្មីច្រើនដែលមិនទាន់មានពត៌មានអ្នកណែនាំ
+*សាខាមិនទាន់មានលទ្ធផលភ្ញៀវថ្មី(16/09): +SVA, KOH, BAN, PUR, ODD, PRH, STU
+
+*សាខាមានលទ្ធផលភ្ញៀវថ្មីច្រើនដែលមិនទាន់មានពត៌មានអ្នកណែនាំ: +PNP, SPE, SPE, THO, CHA
 
 PKD kính gửi danh sách khách hàng mới trong tháng 9 chưa có thông tin nhân viên .
 
-* Chi nhánh hoàn thành  KH mới thấp nhất:
-+
+* Chi nhánh hoàn thành  KH mới thấp nhất:  +ban, BAT, SIE
 
-*Chi nhánh không có kết quả KH mới ngày {ts}
+*Chi nhánh không có kết quả KH mới ngày (16/09) : +SVA, KOH, BAN, PUR, ODD, PRH, STU
 
-*Chi nhánh có nhiều KH mới chưa nhâp mã giới thiệu: 
-+PNPP012
-
+*Chi nhánh có nhiều KH mới chưa nhâp mã giới thiệu:  +PNP, SPE, SPE, THO, CHA
 Thanks."""
 
 FOLDER = os.path.join(os.path.expanduser("~"), "Excel_Screenshots")
@@ -54,20 +55,23 @@ URL_DOC = f"https://api.telegram.org/bot{BOT_TOKEN}/sendDocument"
 
 
 def open_excel(file_path, sheet_name):
-    """Open Excel file and sheet."""
+    """Open Excel file and sheet. Returns (excel, ws, actual_file_path)."""
     excel = win32com.client.Dispatch("Excel.Application")
     excel.Visible = True
     excel.DisplayAlerts = False
     
     try:
+        actual_file_path = None
         if file_path and os.path.exists(file_path):
             wb = excel.Workbooks.Open(os.path.abspath(file_path))
+            actual_file_path = os.path.abspath(file_path)
         elif excel.Workbooks.Count > 0:
             wb = excel.ActiveWorkbook
+            actual_file_path = os.path.abspath(wb.FullName)
         else:
             print("ERROR: No Excel file open")
             excel.Quit()
-            return None, None
+            return None, None, None
         
         if sheet_name:
             try:
@@ -78,11 +82,11 @@ def open_excel(file_path, sheet_name):
         else:
             ws = wb.ActiveSheet
         
-        return excel, ws
+        return excel, ws, actual_file_path
     except Exception as e:
         print(f"ERROR: {e}")
         excel.Quit()
-        return None, None
+        return None, None, None
 
 
 def copy_range_as_image(ws, range_addr=None):
@@ -179,9 +183,10 @@ def main():
     
     excel = None
     ws = None
+    file_to_send = None
     try:
         print("Opening Excel...")
-        excel, ws = open_excel(args.file, args.sheet)
+        excel, ws, file_to_send = open_excel(args.file, args.sheet)
         if not ws:
             return
         
@@ -202,8 +207,8 @@ def main():
         print("Sending to Telegram...")
         send_to_telegram(image_path, args.caption, is_image=True)
         
-        if not args.no_file and args.file and os.path.exists(args.file):
-            send_to_telegram(args.file, args.caption, is_image=False)
+        if not args.no_file and file_to_send and os.path.exists(file_to_send):
+            send_to_telegram(file_to_send, "Excel File: " + os.path.basename(file_to_send), is_image=False)
         
         print("\nDone! Check Telegram.")
         
