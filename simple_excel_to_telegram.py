@@ -2,10 +2,11 @@
 """
 SIMPLE Excel to Telegram Bot
 - Opens Excel file
+- Analyzes branch data from the sheet
 - Goes to your sheet
 - Copies the used range as a picture
 - Saves from clipboard as PNG
-- Sends to Telegram
+- Sends to Telegram with dynamic caption
 """
 
 import os
@@ -17,35 +18,139 @@ import win32com.client
 import win32clipboard
 from datetime import datetime
 import schedule
+
 # ====================
 # CONFIGURATION
 # ====================
 BOT_TOKEN = "8992293068:AAEWvcFouV8xc0v9PDfnBsNwaxGgAViYlUQ"
 CHAT_ID = "-5221976122"
 
-def get_caption():
-    ts = datetime.now().strftime("(%d/%m):%H:%M")
-    return f"""
-    DAILY REPORT OF NEW CUSOMERS
+
+def analyze_branch_data(ws, range_addr=None):
+    """Read Excel data and categorize branches by performance."""
+    try:
+        if range_addr:
+            rng = ws.Range(range_addr)
+        else:
+            rng = ws.Range("A1:Z200")
+        
+        used_range = ws.UsedRange
+        data = []
+        
+        for row in range(1, used_range.Rows.Count + 1):
+            row_data = []
+            for col in range(1, used_range.Columns.Count + 1):
+                cell_value = used_range.Cells(row, col).Value
+                if hasattr(cell_value, 'strftime'):
+                    cell_value = cell_value.strftime('%Y-%m-%d')
+                row_data.append(cell_value if cell_value is not None else "")
+            data.append(row_data)
+        
+        # Hardcoded columns per user: Branch=C(2), New Customers=D(3), Referral=E(4), Rating=I(8)
+        branch_col_idx = 2
+        new_cust_col_idx = 3
+        referral_col_idx = 4
+        rating_col_idx = 8
+        
+        print(f"[ANALYSIS] Using: Branch=C({branch_col_idx}), NewCust=D({new_cust_col_idx}), Ref=E({referral_col_idx}), Rating=I({rating_col_idx})")
+        
+        branches = {}
+        data_started = False
+        for row_idx in range(len(data)):
+            row = data[row_idx]
+            if len(row) <= max(branch_col_idx, new_cust_col_idx, referral_col_idx, rating_col_idx):
+                continue
+            branch = str(row[branch_col_idx]).strip()
+            if not branch:
+                continue
+            if branch.lower() in ['total', 'grand total', 'grand', '', 'nan', 'none', '#n/a']:
+                continue
+            
+            if not data_started:
+                data_started = True
+                print(f"[ANALYSIS] Data starts at row {row_idx}")
+            
+            def parse_num(val):
+                if val is None:
+                    return 0
+                try:
+                    val_str = str(val).replace(',', '').replace('%', '').replace(' ', '').strip()
+                    if not val_str or val_str.lower() in ['nan', 'none', 'null', '#n/a']:
+                        return 0
+                    return float(val_str)
+                except:
+                    return 0
+            
+            new_customers = int(parse_num(row[new_cust_col_idx]))
+            referrals = int(parse_num(row[referral_col_idx]))
+            rating = parse_num(row[rating_col_idx])
+            
+            branches[branch] = {'new_customers': new_customers, 'referrals': referrals, 'rating': rating}
+            
+            if len(branches) <= 3:
+                print(f"[ANALYSIS] Added: {branch} (cust={new_customers}, ref={referrals}, rating={rating})")
+        
+        if not data_started:
+            print("[ANALYSIS] ERROR: No data found!")
+            return {'low_performers': [], 'no_results': [], 'low_referral': []}
+        
+        print(f"[ANALYSIS] Found {len(branches)} branches: {list(branches.keys())}")
+        
+        # 1. Low Performers: 4 branches with LOWEST rating from column I
+        sorted_by_rating = sorted(branches.items(), key=lambda x: x[1]['rating'])
+        low_performers = [b for b, d in sorted_by_rating[:4]]
+        
+        # 2. No Results: new_customers == 0
+        no_results = [b for b, d in branches.items() if d['new_customers'] == 0]
+        
+        # 3. Low Referral: referrals == 0 AND new_customers >= 3
+        low_referral = [b for b, d in branches.items() if d['referrals'] == 0 and d['new_customers'] >= 3]
+        
+        print(f"[ANALYSIS] Low performers (4 lowest rating): {low_performers}")
+        print(f"[ANALYSIS] No results (cust==0): {no_results}")
+        print(f"[ANALYSIS] Low referral (ref==0 AND cust>=3): {low_referral}")
+        
+        return {
+            'low_performers': low_performers,
+            'no_results': no_results,
+            'low_referral': low_referral
+        }
+    except Exception as e:
+        print(f"[ANALYSIS ERROR] {e}")
+        return {'low_performers': [], 'no_results': [], 'low_referral': []}
+
+
+def get_caption(branch_data=None):
+    """Generate caption with dynamic branch data."""
+    today = datetime.now().strftime("%d/%m")
+    
+    if branch_data is None:
+        branch_data = {'low_performers': [], 'no_results': [], 'low_referral': []}
+    
+    low_perf = ", ".join(f"{b}" for b in branch_data['low_performers']) if branch_data['low_performers'] else "None"
+    no_res = ", ".join(f"{b}" for b in branch_data['no_results']) if branch_data['no_results'] else "None"
+    low_ref = ", ".join(f"{b}" for b in branch_data['low_referral']) if branch_data['low_referral'] else "None"
+    
+    return f"""DAILY REPORT OF NEW CUSOMERS
+
 
 នេះជាបញ្ជីឈ្មោះ អតិថិជនថ្មីក្នុងខែ កញ្ញា ដែលមិនទាន់មានពត៌មានរបស់បុគ្គលិកអ្នកណែនាំ
 សូមបញ្ចូលព័ត៌មានអ្នកណែនាំ
 
-*សាខាមានលទ្ធផលភ្ញៀវថ្មីតិចជាងគេ: +ban, BAT, SIE
+*សាខាមានលទ្ធផលភ្ញៀវថ្មីតិចជាងគេ: {low_perf}
+*សាខាមិនទាន់មានលទ្ធផលភ្ញៀវថ្មី({today}): {no_res}
+*សាខាមានលទ្ធផលភ្ញៀវថ្មីច្រើនដែលមានអតិថិជនត្រូវតាមរៀបលាក្រមួយ: {low_ref}
 
-
-*សាខាមិនទាន់មានលទ្ធផលភ្ញៀវថ្មី(16/09): +SVA, KOH, BAN, PUR, ODD, PRH, STU
-
-*សាខាមានលទ្ធផលភ្ញៀវថ្មីច្រើនដែលមិនទាន់មានពត៌មានអ្នកណែនាំ: +PNP, SPE, SPE, THO, CHA
+===========================================================================
 
 PKD kính gửi danh sách khách hàng mới trong tháng 9 chưa có thông tin nhân viên .
 
-* Chi nhánh hoàn thành  KH mới thấp nhất:  +ban, BAT, SIE
+* Chi nhánh hoàn thành KH mới thấp nhất: {low_perf}
+*Chi nhánh không có kết quả KH mới ngày ({today}): {no_res}
+*Chi nhánh có nhiều KH mới có tỉ lệ giới thiệu thấp: {low_ref}
 
-*Chi nhánh không có kết quả KH mới ngày (16/09) : +SVA, KOH, BAN, PUR, ODD, PRH, STU
-
-*Chi nhánh có nhiều KH mới chưa nhâp mã giới thiệu:  +PNP, SPE, SPE, THO, CHA
 Thanks."""
+
 
 FOLDER = os.path.join(os.path.expanduser("~"), "Excel_Screenshots")
 os.makedirs(FOLDER, exist_ok=True)
@@ -98,7 +203,6 @@ def copy_range_as_image(ws, range_addr=None):
             rng = ws.Range("B1:M49")
         
         print(f"Copying range: {rng.Address}")
-        # Copy as picture (Appearance=1=xlScreen, Format=2=xlPicture)
         rng.CopyPicture(Appearance=1, Format=2)
         return True
     except Exception as e:
@@ -112,10 +216,8 @@ def save_clipboard_image():
         win32clipboard.OpenClipboard()
         
         if win32clipboard.IsClipboardFormatAvailable(win32clipboard.CF_DIB):
-            # Get DIB data
             dib = win32clipboard.GetClipboardData(win32clipboard.CF_DIB)
             
-            # Write to temporary BMP
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             bmp_path = os.path.join(FOLDER, f"temp_{timestamp}.bmp")
             with open(bmp_path, 'wb') as f:
@@ -123,7 +225,6 @@ def save_clipboard_image():
             
             win32clipboard.CloseClipboard()
             
-            # Convert BMP to PNG
             try:
                 from PIL import Image
                 img = Image.open(bmp_path)
@@ -133,7 +234,6 @@ def save_clipboard_image():
                 print(f"Saved: {png_path}")
                 return png_path
             except:
-                # If conversion fails, return BMP
                 print(f"Saved: {bmp_path}")
                 return bmp_path
         else:
@@ -176,19 +276,36 @@ def main():
     parser.add_argument('--range', help='Range like A1:L27')
     parser.add_argument('--caption', help='Caption', default=None)
     parser.add_argument('--no-file', action='store_true', help='Send only image')
+    parser.add_argument('--no-analysis', action='store_true', help='Skip branch analysis')
     parser.add_argument('--time', help='Schedule at HH:MM')
     args = parser.parse_args()
-    if args.caption is None:
-        args.caption = get_caption()
     
     excel = None
     ws = None
     file_to_send = None
+    
     try:
         print("Opening Excel...")
         excel, ws, file_to_send = open_excel(args.file, args.sheet)
         if not ws:
             return
+        
+        # Analyze data
+        if not args.no_analysis and not args.caption:
+            print("\n" + "="*60)
+            print("ANALYZING EXCEL DATA...")
+            print("="*60)
+            branch_data = analyze_branch_data(ws, args.range)
+            print("\n" + "="*60)
+            print("ANALYSIS RESULTS:")
+            print("="*60)
+            print(f"  Low Performers:  {branch_data['low_performers']}")
+            print(f"  No Results:      {branch_data['no_results']}")
+            print(f"  Low Referral:    {branch_data['low_referral']}")
+            print("="*60 + "\n")
+            args.caption = get_caption(branch_data)
+        elif args.caption is None:
+            args.caption = get_caption()
         
         time.sleep(1)
         
@@ -196,7 +313,7 @@ def main():
         if not copy_range_as_image(ws, args.range):
             return
         
-        time.sleep(1)  # Wait for clipboard
+        time.sleep(1)
         
         print("Saving clipboard image...")
         image_path = save_clipboard_image()
@@ -214,10 +331,8 @@ def main():
         
     finally:
         if excel:
-            try:
-                excel.Quit()
-            except:
-                pass
+            # Keep Excel open
+            print("[Note] Excel kept open")
 
 
 if __name__ == "__main__":
