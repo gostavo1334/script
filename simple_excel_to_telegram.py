@@ -52,7 +52,7 @@ def analyze_branch_data(ws, range_addr=None):
         referral_col_idx = 4
         rating_col_idx = 8
         
-        print(f"[ANALYSIS] Using: Branch=C({branch_col_idx}), NewCust=D({new_cust_col_idx}), Ref=E({referral_col_idx}), Rating=I({rating_col_idx})")
+        print(f"[ANALYSIS] Using: branch=C({branch_col_idx}), NewCust=D({new_cust_col_idx}), Ref=E({referral_col_idx}), Rating=I({rating_col_idx})")
         
         branches = {}
         data_started = False
@@ -127,9 +127,20 @@ def get_caption(branch_data=None):
     if branch_data is None:
         branch_data = {'low_performers': [], 'no_results': [], 'low_referral': []}
     
-    low_perf = ", ".join(f"{b}" for b in branch_data['low_performers']) if branch_data['low_performers'] else "None"
-    no_res = ", ".join(f"{b}" for b in branch_data['no_results']) if branch_data['no_results'] else "None"
-    low_ref = ", ".join(f"{b}" for b in branch_data['low_referral']) if branch_data['low_referral'] else "None"
+    def clean_branch(name):
+        """Remove 'Branch' from branch names."""
+        if name:
+            name_str = str(name)
+            name_lower = name_str.lower()
+            if name_lower.startswith('branch'):
+                return name_str[6:].strip()
+            elif ' branch ' in name_lower:
+                return name_str.replace('Branch ', '').replace('branch ', '').strip()
+        return name
+    
+    low_perf = ", ".join(clean_branch(b) for b in branch_data['low_performers']) if branch_data['low_performers'] else "None"
+    no_res = ", ".join(clean_branch(b) for b in branch_data['no_results']) if branch_data['no_results'] else "None"
+    low_ref = ", ".join(clean_branch(b) for b in branch_data['low_referral']) if branch_data['low_referral'] else "None"
     
     return f"""DAILY REPORT OF NEW CUSOMERS
 
@@ -137,17 +148,17 @@ def get_caption(branch_data=None):
 នេះជាបញ្ជីឈ្មោះ អតិថិជនថ្មីក្នុងខែ កញ្ញា ដែលមិនទាន់មានពត៌មានរបស់បុគ្គលិកអ្នកណែនាំ
 សូមបញ្ចូលព័ត៌មានអ្នកណែនាំ
 
-*សាខាមានលទ្ធផលភ្ញៀវថ្មីតិចជាងគេ: {low_perf}
-*សាខាមិនទាន់មានលទ្ធផលភ្ញៀវថ្មី({today}): {no_res}
-*សាខាមានលទ្ធផលភ្ញៀវថ្មីច្រើនដែលមានអតិថិជនត្រូវតាមរៀបលាក្រមួយ: {low_ref}
+*សាខាមានលទ្ធផលភ្ញៀវថ្មីតិចជាងគេ: +{low_perf}
+*សាខាមិនទាន់មានលទ្ធផលភ្ញៀវថ្មី({today}): +{no_res}
+*សាខាមានលទ្ធផលភ្ញៀវថ្មីច្រើនដែលមានអតិថិជនត្រូវតាមរៀបលាក្រមួយ: +{low_ref}
 
-===========================================================================
+--------------------------
 
 PKD kính gửi danh sách khách hàng mới trong tháng 9 chưa có thông tin nhân viên .
 
-* Chi nhánh hoàn thành KH mới thấp nhất: {low_perf}
-*Chi nhánh không có kết quả KH mới ngày ({today}): {no_res}
-*Chi nhánh có nhiều KH mới có tỉ lệ giới thiệu thấp: {low_ref}
+* Chi nhánh hoàn thành KH mới thấp nhất: + {low_perf}
+*Chi nhánh không có kết quả KH mới ngày ({today}): +{no_res}
+*Chi nhánh có nhiều KH mới có tỉ lệ giới thiệu thấp: +{low_ref}
 
 Thanks."""
 
@@ -332,7 +343,7 @@ def main():
     finally:
         if excel:
             # Keep Excel open
-            print("[Note] Excel kept open")
+            print("Already Send the file.")
 
 
 if __name__ == "__main__":
